@@ -9,7 +9,7 @@
 # ==========================================================
 
 # External model configuration
-CONFIG_FILE="./claude-models.conf"
+CONFIG_FILE="./models.conf"
 
 # llama-server location
 LLAMA_SERVER="./llama-b10603/llama-server"
@@ -55,41 +55,9 @@ fi
 # ==========================================================
 # Sampling presets
 #
-# Sources (checked against the actual model cards, not guessed):
-#
-#  - qwen36 (Nail, Hermes): straight from Qwen/Qwen3.6-35B-A3B's
-#    own "Best Practices" section on Hugging Face. Nail/Hermes are
-#    Uncensored-Genesis merges built on this base and their own
-#    cards don't publish overrides, so the base model's numbers
-#    are the right fallback.
-#      code     -> "thinking mode, precise coding (e.g. WebDev)"
-#      general  -> "thinking mode, general tasks"
-#      instruct -> official "non-thinking" mode
-#      creative -> NOT an official Qwen preset. Heuristic: nudge
-#                  temp + presence_penalty up from "general" for
-#                  longer-form / roleplay-style output. Treat as a
-#                  starting point to tune, not a sourced number.
-#
-#  - qwen36-compact: same base model/numbers, just kept to 2 modes
-#    since these builds are used for a narrow task (prompt gen).
-#
-#  - ornith: deepreinforce-ai/Ornith-1.0-35B. This is a DIFFERENT
-#    model from Nail/Hermes (own finetune, own weights), confirmed
-#    via its model card and independently by every quant mirror
-#    (unsloth, protoLabsAI, ansulev's uncensored fork all cite the
-#    same numbers):
-#      code    -> temp=0.6, top_p=0.95, top_k=20 (the model's one
-#                 documented default - it's already coding-tuned)
-#      general -> temp=1.0, top_p=1.0 (the higher-temp setting
-#                 Ornith's own Terminal-Bench/agentic evals used)
-#
-#  - gptoss: llama.cpp's official gpt-oss guide states the
-#    recommended setting is exactly `--temp 1.0 --top-p 1.0`
-#    (OpenAI didn't publish a per-task split for this model).
-#      general -> the official 1.0/1.0 setting
-#      code    -> NOT official. Common community practice is a
-#                 lower temp for more deterministic completions -
-#                 included as a starting point, not a sourced number.
+# The actual --temp/--top-p/--top-k/etc. values live in models.conf
+# now (MODE_FLAGS associative array), keyed "family:mode". This is
+# just a lookup with a safe fallback if a combo isn't defined there.
 # ==========================================================
 
 get_mode_flags()
@@ -97,93 +65,15 @@ get_mode_flags()
 
     local FAMILY="$1"
     local MODE="$2"
+    local KEY="${FAMILY}:${MODE}"
 
 
-    case "$FAMILY" in
-
-    qwen36)
-
-        case "$MODE" in
-
-        code)
-            echo "--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0"
-            ;;
-
-        general)
-            echo "--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --repeat-penalty 1.0 --presence-penalty 1.5"
-            ;;
-
-        instruct)
-            echo "--temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --repeat-penalty 1.0 --presence-penalty 1.5"
-            ;;
-
-        creative)
-            # Unofficial heuristic - see notes above. Starting point only.
-            echo "--temp 1.15 --top-p 0.95 --top-k 40 --min-p 0.0 --repeat-penalty 1.0 --presence-penalty 1.8"
-            ;;
-
-        esac
-        ;;
-
-
-    qwen36-compact)
-
-        # Same base model, but these builds are used for a narrow
-        # task (prompt generation), so keep "general" tight rather
-        # than switching to the higher-temp thinking preset.
-
-        case "$MODE" in
-
-        code)
-            echo "--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0"
-            ;;
-
-        general)
-            echo "--temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --repeat-penalty 1.0 --presence-penalty 1.5"
-            ;;
-
-        esac
-        ;;
-
-
-    ornith)
-
-        case "$MODE" in
-
-        code)
-            echo "--temp 0.6 --top-p 0.95 --top-k 20"
-            ;;
-
-        general)
-            echo "--temp 1.0 --top-p 1.0"
-            ;;
-
-        esac
-        ;;
-
-
-    gptoss)
-
-        case "$MODE" in
-
-        general)
-            echo "--temp 1.0 --top-p 1.0"
-            ;;
-
-        code)
-            # Unofficial - see notes above. Starting point only.
-            echo "--temp 0.3 --top-p 0.9"
-            ;;
-
-        esac
-        ;;
-
-
-    *)
+    if [[ -n "${MODE_FLAGS[$KEY]+set}" ]]
+    then
+        echo "${MODE_FLAGS[$KEY]}"
+    else
         echo ""
-        ;;
-
-    esac
+    fi
 
 }
 
