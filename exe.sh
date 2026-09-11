@@ -12,7 +12,7 @@
 CONFIG_FILE="./models/models.conf"
 
 # llama-server location
-LLAMA_SERVER="./llama-b10603/llama-server"
+LLAMA_SERVER="./llama-b10909/llama-server"
 
 # Base model folder
 MODELS_DIR="./models"
